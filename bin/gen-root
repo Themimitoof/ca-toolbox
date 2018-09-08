@@ -1,0 +1,78 @@
+#!/bin/bash
+# Ca-toolbox - gen-root
+# Author: Michael "Themimitoof" Vieira
+# Version: 0.1
+# License: MIT
+#
+
+# General variables
+SUCCESS="\e[32m"
+ERROR="\e[31m"
+RUNNING="\e[37m"
+RESET="\e[0m"
+
+# Function for generating certificate
+function generate_root_ca() {
+	echo -e "Generating root certificate$RUNNING"
+	cfssl gencert -initca "$CAFOLDER/conf/root_ca.json" | cfssljson -bare "$CAFOLDER/exports/root_ca" 2>&1
+    echo -e $RESET
+
+	if [ $? = 0 ]; then
+		echo -e $SUCCESS"Root certificate created.$RESET"
+		exit 0
+	else
+		echo -e $ERROR"An error as happened when we tried to create the certificate :/$RESET"
+		exit 1
+	fi
+}
+
+
+# Check if cfssl is installed
+if [ ! -x "$(command -v cfssl)" ]; then
+	echo -e $ERROR"cfssl binary not found. Please check if cfssl are installed on your machine.$RESET"
+	exit 1
+fi
+
+
+# Check if $CAFOLDER are configured or not
+if [ -z "$CAFOLDER" ]; then
+	echo -e $ERROR"\$CAFOLDER variable are not configured.$RESET"
+	exit 1
+fi
+
+
+# Check if the configuration file exists or not
+if [ ! -f "$CAFOLDER/conf/root_ca.json" ]; then
+	echo -e $ERROR"The configuration file for root certificate (ca_root.json) not exists. Please create them before.$RESET"
+	exit 1
+fi
+
+
+# Check if exports folder already exist or create them
+if [ ! -d "$CAFOLDER/exports" ]; then
+	mkdir "$CAFOLDER/exports"
+
+	if [ $? != 0 ]; then
+		echo -e $ERROR"Unable to create exports folder. Please check if you have permissions.$RESET"
+		exit 1
+	fi
+fi
+
+
+# Check if the root_ca file already exist or not
+if [ -f "$CAFOLDER/exports/root_ca-key.pem" ]; then
+	echo -ne $ERROR"A root CA certificate already exists! Do you want to overwrite? $RESET [y/N] "
+	read OVERWRITE_RESPONSE
+
+	if [ "$OVERWRITE_RESPONSE" = "Y" ] || [ "$OVERWRITE_RESPONSE" = "y" ]; then
+		generate_root_ca
+	else
+		echo "Aborting"
+		exit 1
+	fi
+else
+	generate_root_ca
+fi
+
+
+

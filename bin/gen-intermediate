@@ -1,0 +1,91 @@
+#!/bin/bash
+# Ca-toolbox - gen-intermediate
+# Author: Michael "Themimitoof" Vieira
+# Version: 0.1
+# License: MIT
+#
+
+# General variables
+SUCCESS="\e[32m"
+ERROR="\e[31m"
+RUNNING="\e[37m"
+RESET="\e[0m"
+
+# Function for generating certificate
+function generate_intermediate_ca() {
+	echo -e "Generating intermediate certificate$RUNNING"
+	cfssl gencert -initca "$CAFOLDER/conf/intermediate_ca.json" | cfssljson -bare "$CAFOLDER/exports/intermediate_ca" 2>&1
+    echo -e $RESET
+    
+	if [ $? = 0 ]; then
+		echo -e $SUCCESS"Intermediate certificate created.$RESET"
+		
+        echo -e $SUCCESS"Try to sign the certificate with the root CA$RUNNING"
+        cfssl sign -ca "$CAFOLDER/exports/root_ca.pem" -ca-key "$CAFOLDER/exports/root_ca-key.pem" -config "$CAFOLDER/conf/sign_intermediate.json" "$CAFOLDER/exports/intermediate_ca.csr" | cfssljson -bare "$CAFOLDER/exports/intermediate_ca" 2>&1
+        echo -e $RESET
+        
+        if [ $? = 0 ]; then
+            echo -e $SUCCESS"Intermediate certificate signed.$RESET"
+        else
+            echo -e $ERROR"An error as happened when we tried to sign the certificate :/ Please don't use the existing intermediate certificate!$RESET"
+            exit 1
+        fi 
+	else
+		echo -e $ERROR"An error as happened when we tried to create the certificate :/$RESET"
+		exit 1
+	fi
+}
+
+
+# Check if cfssl is installed
+if [ ! -x "$(command -v cfssl)" ]; then
+	echo -e $ERROR"cfssl binary not found. Please check if cfssl are installed on your machine.$RESET"
+	exit 1
+fi
+
+
+# Check if $CAFOLDER are configured or not
+if [ -z "$CAFOLDER" ]; then
+	echo -e $ERROR"\$CAFOLDER variable are not configured.$RESET"
+	exit 1
+fi
+
+
+# Check if the configuration file exists or not
+if [ ! -f "$CAFOLDER/conf/intermediate_ca.json" ]; then
+	echo -e $ERROR"The configuration file for intermediate certificate (ca_intermediate.json) not exists. Please create them before.$RESET"
+	exit 1
+fi
+
+# Check if the configuration file for signing the certificate exists or not
+if [ ! -f "$CAFOLDER/conf/sign_intermediate.json" ]; then
+	echo -e $ERROR"The configuration file for signing the intermediate certificate (sign_intermediate.json) not exists. Please download it from the repository before continuing.$RESET"
+	exit 1
+fi
+
+
+# Check if exports folder already exist or create them
+if [ ! -d "$CAFOLDER/exports" ]; then
+	mkdir "$CAFOLDER/exports"
+
+	if [ $? != 0 ]; then
+		echo -e $ERROR"Unable to create exports folder. Please check if you have permissions.$RESET"
+		exit 1
+	fi
+fi
+
+
+# Check if the intermediate_ca file already exist or not
+if [ -f "$CAFOLDER/exports/intermediate_ca-key.pem" ]; then
+	echo -ne $ERROR"A intermediate CA certificate already exists! Do you want to overwrite? $RESET [y/N] "
+	read OVERWRITE_RESPONSE
+
+	if [ "$OVERWRITE_RESPONSE" = "Y" ] || [ "$OVERWRITE_RESPONSE" = "y" ]; then
+		generate_intermediate_ca
+	else
+		echo "Aborting"
+		exit 1
+	fi
+else
+	generate_intermediate_ca
+fi

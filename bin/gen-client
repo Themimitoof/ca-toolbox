@@ -1,0 +1,98 @@
+#!/bin/bash
+# Ca-toolbox - gen-client
+# Author: Michael "Themimitoof" Vieira
+# Version: 0.1
+# License: MIT
+#
+
+# General variables
+FILE=$1
+SUCCESS="\e[32m"
+ERROR="\e[31m"
+RUNNING="\e[37m"
+RESET="\e[0m"
+
+echo "file: $FILE"
+# Function for generating certificate
+function generate_client_cert() {
+	echo -e "Generating $FILE certificate$RUNNING"
+    cfssl gencert -ca "$CAFOLDER/exports/intermediate_ca.pem" -ca-key "$CAFOLDER/exports/intermediate_ca-key.pem" -config "$CAFOLDER/conf/sign_client_cert.json" "$CAFOLDER/conf/$FILE.json" | cfssljson -bare "$CAFOLDER/exports/$FILE" 2>&1
+    echo -e $RESET
+    
+	if [ $? = 0 ]; then
+		echo -e $SUCCESS"$FILE certificate created.$RESET"
+		exit 0
+	else
+		echo -e $ERROR"An error as happened when we tried to create the certificate :/$RESET"
+		exit 1
+	fi
+}
+
+
+# Check if cfssl is installed
+if [ ! -x "$(command -v cfssl)" ]; then
+	echo -e $ERROR"cfssl binary not found. Please check if cfssl are installed on your machine.$RESET"
+	exit 1
+fi
+
+
+# Check if $CAFOLDER are configured or not
+if [ -z "$CAFOLDER" ]; then
+	echo -e $ERROR"\$CAFOLDER variable are not configured.$RESET"
+	exit 1
+fi
+
+
+# Check if $FILE is empty or not
+if [ -z "$FILE" ]; then
+    echo -e $ERROR"Please provide the name of the file before.\n\tUsage: gen-client service.acme.local$RESET"
+    exit 1
+fi
+
+
+# Check if the client configuration file exists or not
+if [ ! -f "$CAFOLDER/conf/$FILE.json" ]; then
+	echo -e $ERROR"The configuration file for client certificate ($FILE.json) not exists. Please create them before.$RESET"
+	exit 1
+fi
+
+
+# Check if the intermediate configuration file exists or not
+if [ ! -f "$CAFOLDER/conf/intermediate_ca.json" ]; then
+	echo -e $ERROR"The configuration file for intermediate certificate (ca_intermediate.json) not exists. Please create them before.$RESET"
+	exit 1
+fi
+
+
+# Check if the configuration file for signing the certificate exists or not
+if [ ! -f "$CAFOLDER/conf/sign_intermediate.json" ]; then
+	echo -e $ERROR"The configuration file for signing the intermediate certificate (sign_intermediate.json) not exists. Please download it from the repository before continuing.$RESET"
+	exit 1
+fi
+
+
+# Check if exports folder already exist or create them
+if [ ! -d "$CAFOLDER/exports" ]; then
+	mkdir "$CAFOLDER/exports"
+
+	if [ $? != 0 ]; then
+		echo -e $ERROR"Unable to create exports folder. Please check if you have permissions.$RESET"
+		exit 1
+	fi
+fi
+
+
+# Check if the client certificate already exist or not
+if [ -f "$CAFOLDER/exports/$FILE-key.pem" ]; then
+	echo -ne $ERROR"A client certificate already exists! Do you want to overwrite? $RESET [y/N] "
+	read OVERWRITE_RESPONSE
+
+	if [ "$OVERWRITE_RESPONSE" = "Y" ] || [ "$OVERWRITE_RESPONSE" = "y" ]; then
+		generate_client_cert
+	else
+		echo "Aborting"
+		exit 1
+	fi
+else
+	generate_client_cert
+fi

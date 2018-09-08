@@ -1,0 +1,81 @@
+#!/bin/bash
+# Ca-toolbox - gen-crt
+# Author: Michael "Themimitoof" Vieira
+# Version: 0.1
+# License: MIT
+#
+
+# General variables
+SUCCESS="\e[32m"
+ERROR="\e[31m"
+RUNNING="\e[37m"
+RESET="\e[0m"
+
+
+function generate_x506() {
+    echo -e "Generating root X.506 certificate$RUNNING"
+    openssl x509 -outform der -in "$CAFOLDER/exports/root_ca.pem" -out "$CAFOLDER/exports/root_ca.crt"
+    echo -e $RESET
+    
+	if [ $? = 0 ]; then
+		echo -e $SUCCESS"X.506 certificate for root certificate exported.$RESET"
+
+		echo -e "Generating intermediate X.506 certificate$RUNNING"
+        openssl x509 -outform der -in "$CAFOLDER/exports/intermediate_ca.pem" -out "$CAFOLDER/exports/intermediate_ca.crt"
+        echo -e $RESET
+        
+        if [ $? = 0 ]; then
+            echo -e $SUCCESS"X.506 certificate for intermediate certificate exported.$RESET"
+            exit 0
+        else
+            echo -e $ERROR"An error as happened when we tried to export the certificate :/$RESET"
+            exit 1
+        fi
+	else
+		echo -e $ERROR"An error as happened when we tried to export the certificate :/$RESET"
+		exit 1
+	fi
+}
+
+# Check if cfssl is installed
+if [ ! -x "$(command -v cfssl)" ]; then
+	echo -e $ERROR"cfssl binary not found. Please check if cfssl are installed on your machine.$RESET"
+	exit 1
+fi
+
+
+# Check if $CAFOLDER are configured or not
+if [ -z "$CAFOLDER" ]; then
+	echo -e $ERROR"\$CAFOLDER variable are not configured.$RESET"
+	exit 1
+fi
+
+
+# Check if the root certificate exists or not
+if [ ! -f "$CAFOLDER/exports/root_ca.pem" ]; then
+	echo -e $ERROR"The configuration file for intermediate certificate (ca_intermediate.json) not exists. Please create them before.$RESET"
+	exit 1
+fi
+
+
+# Check if the intermediate certificate exists or not
+if [ ! -f "$CAFOLDER/exports/intermediate_ca.pem" ]; then
+	echo -e $ERROR"The configuration file for signing the intermediate certificate (sign_intermediate.json) not exists. Please download it from the repository before continuing.$RESET"
+	exit 1
+fi
+
+
+# Check if the intermediate_ca file already exist or not
+if [ -f "$CAFOLDER/exports/root_ca.crt" ] || [ -f "$CAFOLDER/exports/intermediate_ca.crt" ]; then
+	echo -ne $ERROR"X.506 files are already generated. Do you want to overwrite them? $RESET [y/N] "
+	read OVERWRITE_RESPONSE
+
+	if [ "$OVERWRITE_RESPONSE" = "Y" ] || [ "$OVERWRITE_RESPONSE" = "y" ]; then
+		generate_x506
+	else
+		echo "Aborting"
+		exit 1
+	fi
+else
+	generate_x506
+fi

@@ -1,0 +1,5 @@
+exports/
+conf/*
+!conf/sign_intermediate.json
+!conf/sign_client_cert.json
+!conf/*.tmpl
